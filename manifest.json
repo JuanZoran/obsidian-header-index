@@ -1,0 +1,10 @@
+{
+	"id": "sample-plugin",
+	"name": "Minimal Plugin",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Minimal starter plugin that logs load and unload events.",
+	"author": "Obsidian",
+	"authorUrl": "github.com/JuanZoran",
+	"isDesktopOnly": false
+}
