@@ -1,10 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Minimal Plugin",
-	"version": "1.0.0",
+	"id": "header-index",
+	"name": "header-index",
+	"version": "1.7.0",
 	"minAppVersion": "0.15.0",
-	"description": "Minimal starter plugin that logs load and unload events.",
-	"author": "Obsidian",
+	"description": "自动为 Markdown 标题添加层级编号。",
+	"author": "Zoran",
 	"authorUrl": "github.com/JuanZoran",
 	"isDesktopOnly": false
 }

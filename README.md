@@ -1,16 +1,26 @@
-# Minimal Obsidian Plugin
+# 标题编号（Head Index）
 
-Lightweight starter plugin that only logs to the console when it loads and unloads. Use this as a clean base for building your own features.
+为 Markdown 标题自动添加层级编号（如 `# 1. 标题`、`## 1.1. 子标题`），可通过命令或在打开文件时自动完成。
 
-## Development
+## 使用方式
+- 命令面板：运行 **为当前笔记添加标题编号**，为当前笔记重新生成编号。
+- 设置项：开启 **打开文件时自动编号**，在打开 Markdown 文件时自动编号。
+- 编号起始：在设置中选择从 **0** 或 **1** 开始编号（默认从 1 开始）。
+- 自动识别最小层级：如果笔记从二级标题（`##`）起写，将自动把二级当作顶层开始编号。
+- 自动触发方式：在设置中选择 **编辑时（去抖）** 或 **保存时** 自动重算；也可关闭自动。
+- 增量重算：编辑时仅在检测到标题相关的改动（或累积多次改动）时触发，减少无关重排。
+- 格式自定义：可配置分隔符（默认“.”）、末尾分隔符策略（全部/仅顶级/不保留）、编号后是否插入空格。
+- 层级规则：`#` → `1.`，`##` → `1.1.`，`###` → `1.1.1.`；同级标题递增。
+- 会忽略代码块与 front matter；多次运行也安全，旧编号会被替换。
+
+## 开发
 - `npm install`
-- `npm run dev` for watch mode (outputs to `build/`)
-- `npm run build` for a production bundle (artifacts in `build/`)
+- `npm run dev`（监听输出到 `build/`）
+- `npm run build`（生产构建输出到 `build/`）
 
-## Testing in Obsidian
-- After building, copy `build/main.js`, `build/manifest.json`, and `build/styles.css` (if used) to `<Vault>/.obsidian/plugins/sample-plugin/`
-- Reload Obsidian and enable the plugin via **Settings → Community plugins**
+## 在 Obsidian 中测试
+- 构建后将 `build/main.js`、`build/manifest.json`（以及 `build/styles.css` 若存在）复制到 `<Vault>/.obsidian/plugins/head-index/`
+- 重新加载 Obsidian 并在 **设置 → 社区插件** 中启用插件
 
-## Notes
-- Check the developer console to see the load/unload log messages
-- Node 18+ recommended (matches current LTS)
+## 备注
+- 推荐使用 Node 18+（当前 LTS）

@@ -1,7 +1,7 @@
 {
-	"name": "minimal",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "header-index",
+	"version": "1.7.0",
+	"description": "为笔记标题添加层级编号",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
