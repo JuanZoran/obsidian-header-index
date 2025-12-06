@@ -1,7 +1,7 @@
 {
 	"id": "header-index",
 	"name": "header-index",
-	"version": "1.7.0",
+	"version": "1.7.1",
 	"minAppVersion": "0.15.0",
 	"description": "自动为 Markdown 标题添加层级编号。",
 	"author": "Zoran",

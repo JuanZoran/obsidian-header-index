@@ -62,8 +62,18 @@ export default class HeadIndexPlugin extends Plugin {
 		const loaded = await this.loadData();
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, loaded);
 
-		if (loaded && "autoNumberOnEdit" in loaded && loaded.autoNumberOnEdit === true && this.settings.autoTriggerMode === "off") {
-			this.settings.autoTriggerMode = "on-edit";
+		// Migration: Convert old autoNumberOnEdit setting to autoTriggerMode
+		// Only migrate if autoTriggerMode was not explicitly set (i.e., it's using default value)
+		// and the old autoNumberOnEdit setting exists
+		if (loaded && "autoNumberOnEdit" in loaded && loaded.autoNumberOnEdit === true) {
+			// Only migrate if autoTriggerMode is not explicitly set in saved data
+			// This means it's either missing or using the default value
+			if (!("autoTriggerMode" in loaded) || loaded.autoTriggerMode === DEFAULT_SETTINGS.autoTriggerMode) {
+				this.settings.autoTriggerMode = "on-edit";
+				// Remove the old field and save the migrated settings
+				delete (this.settings as any).autoNumberOnEdit;
+				await this.saveSettings();
+			}
 		}
 	}
 
