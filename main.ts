@@ -2,11 +2,13 @@ import { Editor, MarkdownView, Notice, Plugin, debounce } from "obsidian";
 import { registerCommands } from "./src/commands";
 import { applyHeadingNumbering } from "./src/numbering";
 import { DEFAULT_SETTINGS, HeadIndexSettingTab, HeadIndexSettings } from "./src/settings";
+import { AUTO_NUMBER_DEBOUNCE_MS, AUTO_NUMBER_EVENT_THRESHOLD } from "./src/numbering/constants";
 
 export default class HeadIndexPlugin extends Plugin {
 	settings: HeadIndexSettings;
 	private numberingInProgress = false;
 	private changeEventsSinceLastNumbering = 0;
+	private lastNumberingTimestamp = 0;
 	private debouncedAutoNumber = debounce(
 		(editor: Editor) => {
 			if (this.settings.autoTriggerMode !== "on-edit") return;
@@ -14,7 +16,7 @@ export default class HeadIndexPlugin extends Plugin {
 
 			const shouldRun =
 				this.isHeadingContext(editor) ||
-				this.changeEventsSinceLastNumbering >= 8;
+				this.changeEventsSinceLastNumbering >= AUTO_NUMBER_EVENT_THRESHOLD;
 
 			if (!shouldRun) {
 				return;
@@ -22,7 +24,7 @@ export default class HeadIndexPlugin extends Plugin {
 
 			this.applyNumbering(editor, { silent: true });
 		},
-		450,
+		AUTO_NUMBER_DEBOUNCE_MS,
 	);
 
 	async onload() {
@@ -43,6 +45,11 @@ export default class HeadIndexPlugin extends Plugin {
 			this.app.workspace.on("editor-change", (editor, view) => {
 				if (!view) return;
 				if (this.settings.autoTriggerMode !== "on-edit") return;
+				// Ignore editor-change events triggered by our own numbering updates
+				if (this.numberingInProgress) return;
+				// Ignore events within 100ms of last numbering to prevent loop
+				const now = Date.now();
+				if (now - this.lastNumberingTimestamp < 100) return;
 				this.changeEventsSinceLastNumbering += 1;
 				this.debouncedAutoNumber(editor);
 			}),
@@ -71,7 +78,8 @@ export default class HeadIndexPlugin extends Plugin {
 			if (!("autoTriggerMode" in loaded) || loaded.autoTriggerMode === DEFAULT_SETTINGS.autoTriggerMode) {
 				this.settings.autoTriggerMode = "on-edit";
 				// Remove the old field and save the migrated settings
-				delete (this.settings as any).autoNumberOnEdit;
+				const settingsWithOldField = this.settings as HeadIndexSettings & { autoNumberOnEdit?: boolean };
+				delete settingsWithOldField.autoNumberOnEdit;
 				await this.saveSettings();
 			}
 		}
@@ -105,8 +113,12 @@ export default class HeadIndexPlugin extends Plugin {
 				separator: this.settings.separator,
 				trailingMode: this.settings.trailingMode,
 				spaceAfterNumber: this.settings.spaceAfterNumber,
+				debugMode: this.settings.debugMode,
 			});
 			this.changeEventsSinceLastNumbering = 0;
+			if (result.changed) {
+				this.lastNumberingTimestamp = Date.now();
+			}
 
 			if (!silent) {
 				if (result.processedHeadings === 0) {

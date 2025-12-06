@@ -8,6 +8,7 @@ export interface HeadIndexSettings {
 	separator: string;
 	trailingMode: "all" | "root-only" | "none";
 	spaceAfterNumber: boolean;
+	debugMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: HeadIndexSettings = {
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: HeadIndexSettings = {
 	separator: ".",
 	trailingMode: "all",
 	spaceAfterNumber: true,
+	debugMode: false,
 };
 
 export class HeadIndexSettingTab extends PluginSettingTab {
@@ -111,6 +113,20 @@ export class HeadIndexSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.spaceAfterNumber)
 					.onChange(async (value) => {
 						this.plugin.settings.spaceAfterNumber = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		containerEl.createEl("h3", { text: "调试" });
+
+		new Setting(containerEl)
+			.setName("调试模式")
+			.setDesc("开启后会在控制台输出详细的调试信息，用于定位问题。")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.debugMode)
+					.onChange(async (value) => {
+						this.plugin.settings.debugMode = value;
 						await this.plugin.saveSettings();
 					}),
 			);
