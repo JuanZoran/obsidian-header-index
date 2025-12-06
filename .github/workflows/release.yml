@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*" # 匹配所有 tag
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 需要创建 release 的权限
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Extract version from manifest
+        id: extract_version
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building release for version: $VERSION"
+
+      - name: Verify tag matches version
+        run: |
+          VERSION="${{ steps.extract_version.outputs.version }}"
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "Error: Tag '$TAG' does not match version '$VERSION' in manifest.json"
+            echo "Tag should match the version in manifest.json (without 'v' prefix)"
+            exit 1
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/main.js
+            build/manifest.json
+            build/styles.css
+          fail_on_unmatched_files: false
+          name: Release ${{ steps.extract_version.outputs.version }}
+          body: |
+            ## Release ${{ steps.extract_version.outputs.version }}
+
+            ### Files
+            - `main.js` - Compiled plugin code
+            - `manifest.json` - Plugin manifest
+            - `styles.css` - Plugin styles (if present)
+
+            ### Installation
+            1. Download the release files
+            2. Copy `main.js`, `manifest.json`, and `styles.css` (if present) to your vault's `.obsidian/plugins/header-index/` directory
+            3. Reload Obsidian and enable the plugin in Settings → Community plugins
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
