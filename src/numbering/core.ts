@@ -19,6 +19,7 @@ import {
 	adjustCountersForLevel,
 } from "./formatter";
 import { MAX_STRIP_ITERATIONS } from "./constants";
+import { Debug } from "../debug";
 
 export function applyHeadingNumbering(
 	editor: Editor,
@@ -28,7 +29,6 @@ export function applyHeadingNumbering(
 	const separator = sanitizeSeparator(options.separator);
 	const trailingMode = options.trailingMode ?? "all";
 	const spaceAfterNumber = options.spaceAfterNumber ?? true;
-	const debugMode = options.debugMode ?? false;
 	const parser = new NumberingParser(separator);
 	const counters: number[] = [];
 	let state: MarkdownState = { inFence: false, inFrontMatter: false };
@@ -74,7 +74,6 @@ export function applyHeadingNumbering(
 			spacing,
 			normalizedLevel,
 			spaceAfterNumber,
-			debugMode,
 		);
 
 		if (change) {
@@ -128,6 +127,13 @@ function restoreCursorPosition(
 	separator: string,
 	parser: NumberingParser,
 ): void {
+	Debug.log("cursor", "Restoring cursor position:", {
+		cursorLine,
+		cursorCh,
+		oldLine: oldCursorLineContent,
+		newLine,
+	});
+
 	// Parse the old and new heading to understand the change
 	const oldHeading = parseHeading(oldCursorLineContent);
 	const newHeading = parseHeading(newLine);
@@ -187,9 +193,21 @@ function restoreCursorPosition(
 			const offsetInContent = cursorCh - oldContentStart;
 			const newCh = newContentStart + offsetInContent;
 			// Ensure cursor doesn't go beyond line length
-			editor.setCursor({ line: cursorLine, ch: Math.min(newCh, newLine.length) });
+			const finalCh = Math.min(newCh, newLine.length);
+			Debug.log("cursor", "Cursor in content area, adjusting:", {
+				oldCh: cursorCh,
+				oldContentStart,
+				newContentStart,
+				offsetInContent,
+				finalCh,
+			});
+			editor.setCursor({ line: cursorLine, ch: finalCh });
 		} else {
 			// Cursor was in prefix or numbering area - move to start of content
+			Debug.log("cursor", "Cursor in prefix/numbering area, moving to content start:", {
+				oldCh: cursorCh,
+				newContentStart,
+			});
 			editor.setCursor({ line: cursorLine, ch: newContentStart });
 		}
 	} else {
@@ -198,6 +216,11 @@ function restoreCursorPosition(
 		if (newLine.length < cursorCh) {
 			newCh = Math.max(0, newLine.length);
 		}
+		Debug.log("cursor", "Fallback cursor adjustment:", {
+			oldCh: cursorCh,
+			newCh,
+			newLineLength: newLine.length,
+		});
 		editor.setCursor({ line: cursorLine, ch: newCh });
 	}
 }
@@ -210,27 +233,24 @@ function processHeadingLine(
 	spacing: string,
 	normalizedLevel: number,
 	spaceAfterNumber: boolean,
-	debugMode: boolean,
 ): string | null {
 	const parsed = parser.parse(heading.content);
 	
-	if (debugMode) {
-		console.log("[HeadIndex Debug] Processing heading:", {
-			line: `${heading.indent}${heading.hashes} ${heading.content}`,
-			headingContent: heading.content,
-			parsed: {
-				isValid: parsed.isValid,
-				numbering: parsed.numbering,
-				content: parsed.content,
-				contentLength: parsed.content.length,
-				hasSpace: parsed.hasSpace,
-			},
-			expectedNumbering,
-			separator,
-			spaceAfterNumber,
-			spacing,
-		});
-	}
+	Debug.log("core", "Processing heading:", {
+		line: `${heading.indent}${heading.hashes} ${heading.content}`,
+		headingContent: heading.content,
+		parsed: {
+			isValid: parsed.isValid,
+			numbering: parsed.numbering,
+			content: parsed.content,
+			contentLength: parsed.content.length,
+			hasSpace: parsed.hasSpace,
+		},
+		expectedNumbering,
+		separator,
+		spaceAfterNumber,
+		spacing,
+	});
 
 	// Handle special case: single digit at start (e.g., "1内容")
 	// Only for top-level headings where the digit matches the first part of expected numbering
@@ -266,29 +286,25 @@ function processHeadingLine(
 	const parsedNumberingCore = parsed.numbering;
 	const numberingMatches = parsed.isValid && parsedNumberingCore === expectedNumberingCore;
 	
-	if (debugMode) {
-		console.log("[HeadIndex Debug] Numbering comparison:", {
-			expectedNumbering,
-			expectedNumberingCore,
-			parsedNumbering: parsed.numbering,
-			parsedNumberingCore,
-			numberingMatches,
-		});
-	}
+	Debug.log("core", "Numbering comparison:", {
+		expectedNumbering,
+		expectedNumberingCore,
+		parsedNumbering: parsed.numbering,
+		parsedNumberingCore,
+		numberingMatches,
+	});
 
 	// If no numbering found or numbering doesn't match, add/update it
 	if (!parsed.isValid || !numberingMatches) {
 		const cleanContent = parsed.isValid
-			? stripNumberingRecursive(parser, parsed.content, MAX_STRIP_ITERATIONS, debugMode)
+			? stripNumberingRecursive(parser, parsed.content, MAX_STRIP_ITERATIONS)
 			: heading.content;
 		
-		if (debugMode) {
-			console.log("[HeadIndex Debug] Updating heading:", {
-				original: heading.content,
-				cleanContent,
-				newLine: `${heading.indent}${heading.hashes} ${expectedNumbering}${spacing}${cleanContent}`.trimEnd(),
-			});
-		}
+		Debug.log("core", "Updating heading:", {
+			original: heading.content,
+			cleanContent,
+			newLine: `${heading.indent}${heading.hashes} ${expectedNumbering}${spacing}${cleanContent}`.trimEnd(),
+		});
 		
 		return `${heading.indent}${heading.hashes} ${expectedNumbering}${spacing}${cleanContent}`.trimEnd();
 	}
@@ -300,21 +316,17 @@ function processHeadingLine(
 		`${heading.indent}${heading.hashes} ${heading.content}`.trimEnd(),
 	);
 
-	if (debugMode) {
-		console.log("[HeadIndex Debug] Format check:", {
-			expectedLine,
-			normalizedExpected,
-			currentLine: `${heading.indent}${heading.hashes} ${heading.content}`,
-			normalizedCurrent,
-			matches: normalizedCurrent === normalizedExpected,
-		});
-	}
+	Debug.log("format", "Format check:", {
+		expectedLine,
+		normalizedExpected,
+		currentLine: `${heading.indent}${heading.hashes} ${heading.content}`,
+		normalizedCurrent,
+		matches: normalizedCurrent === normalizedExpected,
+	});
 
 	// If format differs, reformat
 	if (normalizedCurrent !== normalizedExpected) {
-		if (debugMode) {
-			console.log("[HeadIndex Debug] Format differs, reformatting to:", expectedLine);
-		}
+		Debug.log("format", "Format differs, reformatting to:", expectedLine);
 		return expectedLine;
 	}
 
@@ -326,15 +338,12 @@ function stripNumberingRecursive(
 	parser: NumberingParser,
 	content: string,
 	maxIterations: number,
-	debugMode: boolean = false,
 ): string {
 	let result = content.trim();
 	let changed = true;
 	let iteration = 0;
 
-	if (debugMode) {
-		console.log("[HeadIndex Debug] stripNumberingRecursive start:", { content, result });
-	}
+	Debug.log("strip", "stripNumberingRecursive start:", { content, result });
 
 	while (changed && iteration < maxIterations) {
 		iteration++;
@@ -342,16 +351,14 @@ function stripNumberingRecursive(
 
 		const parsed = parser.parse(result);
 
-		if (debugMode) {
-			console.log(`[HeadIndex Debug] stripNumberingRecursive iteration ${iteration}:`, {
-				result,
-				parsed: {
-					isValid: parsed.isValid,
-					numbering: parsed.numbering,
-					content: parsed.content,
-				},
-			});
-		}
+		Debug.log("strip", `stripNumberingRecursive iteration ${iteration}:`, {
+			result,
+			parsed: {
+				isValid: parsed.isValid,
+				numbering: parsed.numbering,
+				content: parsed.content,
+			},
+		});
 
 		if (parsed.isValid && parsed.content.length > 0) {
 			// Check if content after numbering doesn't start with a digit
@@ -364,14 +371,10 @@ function stripNumberingRecursive(
 	}
 
 	if (iteration >= maxIterations) {
-		console.warn(
-			`[HeadIndex] WARNING: Reached iteration limit while stripping numbering!`,
-		);
+		Debug.warn("strip", "Reached iteration limit while stripping numbering!");
 	}
 
-	if (debugMode) {
-		console.log("[HeadIndex Debug] stripNumberingRecursive end:", { result, iterations: iteration });
-	}
+	Debug.log("strip", "stripNumberingRecursive end:", { result, iterations: iteration });
 
 	return result;
 }

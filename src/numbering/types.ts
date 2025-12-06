@@ -10,6 +10,7 @@ export interface NumberingOptions {
 	separator?: string;
 	trailingMode?: "all" | "root-only" | "none";
 	spaceAfterNumber?: boolean;
+	// debugMode is deprecated, use Debug class directly
 	debugMode?: boolean;
 }
 

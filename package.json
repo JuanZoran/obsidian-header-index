@@ -1,6 +1,6 @@
 {
 	"name": "header-index",
-	"version": "1.7.2",
+	"version": "1.7.3",
 	"description": "为笔记标题添加层级编号",
 	"main": "main.js",
 	"scripts": {

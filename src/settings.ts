@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type HeadIndexPlugin from "../main";
+import { DebugSettings, DEFAULT_DEBUG_SETTINGS } from "./debug";
 
 export interface HeadIndexSettings {
 	autoNumberOnFileOpen: boolean;
@@ -8,7 +9,9 @@ export interface HeadIndexSettings {
 	separator: string;
 	trailingMode: "all" | "root-only" | "none";
 	spaceAfterNumber: boolean;
-	debugMode: boolean;
+	debug: DebugSettings;
+	// 向后兼容：保留旧的 debugMode 字段（已废弃）
+	debugMode?: boolean;
 }
 
 export const DEFAULT_SETTINGS: HeadIndexSettings = {
@@ -18,7 +21,7 @@ export const DEFAULT_SETTINGS: HeadIndexSettings = {
 	separator: ".",
 	trailingMode: "all",
 	spaceAfterNumber: true,
-	debugMode: false,
+	debug: DEFAULT_DEBUG_SETTINGS,
 };
 
 export class HeadIndexSettingTab extends PluginSettingTab {
@@ -119,16 +122,93 @@ export class HeadIndexSettingTab extends PluginSettingTab {
 
 		containerEl.createEl("h3", { text: "调试" });
 
-		new Setting(containerEl)
+		// 主调试开关
+		const debugMainSetting = new Setting(containerEl)
 			.setName("调试模式")
 			.setDesc("开启后会在控制台输出详细的调试信息，用于定位问题。")
 			.addToggle((toggle) =>
 				toggle
-					.setValue(this.plugin.settings.debugMode)
+					.setValue(this.plugin.settings.debug.enabled)
 					.onChange(async (value) => {
-						this.plugin.settings.debugMode = value;
+						this.plugin.settings.debug.enabled = value;
 						await this.plugin.saveSettings();
+						// 更新调试系统
+						await this.updateDebugSettings();
+						// 重新渲染以更新子开关显示状态
+						this.display();
 					}),
 			);
+
+		// 子模块开关容器（可折叠）
+		const debugModulesContainer = containerEl.createDiv({
+			cls: "head-index-debug-modules",
+			attr: {
+				style: this.plugin.settings.debug.enabled
+					? "display: block; margin-top: 10px;"
+					: "display: none;",
+			},
+		});
+
+		// 模块配置
+		type DebugModuleKey = keyof typeof this.plugin.settings.debug.modules;
+		const moduleConfigs: Array<{
+			key: DebugModuleKey;
+			name: string;
+			desc: string;
+		}> = [
+			{
+				key: "core",
+				name: "核心编号逻辑",
+				desc: "标题编号的主要处理流程",
+			},
+			{
+				key: "parser",
+				name: "编号解析器",
+				desc: "解析现有编号格式",
+			},
+			{
+				key: "cursor",
+				name: "光标恢复",
+				desc: "光标位置恢复逻辑",
+			},
+			{
+				key: "strip",
+				name: "内容清理",
+				desc: "递归清理编号内容",
+			},
+			{
+				key: "events",
+				name: "事件处理",
+				desc: "自动触发相关的事件处理",
+			},
+			{
+				key: "format",
+				name: "格式检查",
+				desc: "格式匹配和规范化",
+			},
+		];
+
+		// 创建子模块开关
+		moduleConfigs.forEach((config) => {
+			new Setting(debugModulesContainer)
+				.setName(config.name)
+				.setDesc(config.desc)
+				.addToggle((toggle) => {
+					const moduleKey: DebugModuleKey = config.key;
+					toggle
+						.setValue(this.plugin.settings.debug.modules[moduleKey])
+						.setDisabled(!this.plugin.settings.debug.enabled)
+						.onChange(async (value) => {
+							this.plugin.settings.debug.modules[moduleKey] = value;
+							await this.plugin.saveSettings();
+							await this.updateDebugSettings();
+						});
+				});
+		});
+	}
+
+	private async updateDebugSettings(): Promise<void> {
+		const { Debug } = await import("./debug");
+		Debug.init(this.plugin.settings.debug);
 	}
 }

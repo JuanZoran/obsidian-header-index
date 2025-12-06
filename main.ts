@@ -3,6 +3,7 @@ import { registerCommands } from "./src/commands";
 import { applyHeadingNumbering } from "./src/numbering";
 import { DEFAULT_SETTINGS, HeadIndexSettingTab, HeadIndexSettings } from "./src/settings";
 import { AUTO_NUMBER_DEBOUNCE_MS, AUTO_NUMBER_EVENT_THRESHOLD } from "./src/numbering/constants";
+import { Debug } from "./src/debug";
 
 export default class HeadIndexPlugin extends Plugin {
 	settings: HeadIndexSettings;
@@ -30,12 +31,17 @@ export default class HeadIndexPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
+		// Initialize debug system
+		Debug.init(this.settings.debug);
+
 		registerCommands(this);
 		this.addSettingTab(new HeadIndexSettingTab(this.app, this));
 
 		this.registerEvent(
 			this.app.workspace.on("file-open", () => {
+				Debug.log("events", "File opened");
 				if (this.settings.autoNumberOnFileOpen) {
+					Debug.log("events", "Auto-numbering on file open enabled, applying numbering");
 					this.applyNumbering(undefined, { silent: true });
 				}
 			}),
@@ -43,23 +49,50 @@ export default class HeadIndexPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on("editor-change", (editor, view) => {
-				if (!view) return;
-				if (this.settings.autoTriggerMode !== "on-edit") return;
+				Debug.log("events", "Editor change event triggered");
+				if (!view) {
+					Debug.log("events", "No view, skipping");
+					return;
+				}
+				if (this.settings.autoTriggerMode !== "on-edit") {
+					Debug.log("events", "Auto-trigger mode is not 'on-edit', skipping");
+					return;
+				}
 				// Ignore editor-change events triggered by our own numbering updates
-				if (this.numberingInProgress) return;
+				if (this.numberingInProgress) {
+					Debug.log("events", "Numbering in progress, ignoring event");
+					return;
+				}
 				// Ignore events within 100ms of last numbering to prevent loop
 				const now = Date.now();
-				if (now - this.lastNumberingTimestamp < 100) return;
+				if (now - this.lastNumberingTimestamp < 100) {
+					Debug.log("events", "Event too soon after last numbering, ignoring");
+					return;
+				}
 				this.changeEventsSinceLastNumbering += 1;
+				Debug.log("events", "Triggering debounced auto-number", {
+					changeEventsSinceLastNumbering: this.changeEventsSinceLastNumbering,
+				});
 				this.debouncedAutoNumber(editor);
 			}),
 		);
 
 		this.registerEvent(
 			this.app.vault.on("modify", (file) => {
-				if (this.settings.autoTriggerMode !== "on-save") return;
+				Debug.log("events", "File modified", { path: file.path });
+				if (this.settings.autoTriggerMode !== "on-save") {
+					Debug.log("events", "Auto-trigger mode is not 'on-save', skipping");
+					return;
+				}
 				const activeFile = this.app.workspace.getActiveFile();
-				if (!activeFile || file.path !== activeFile.path) return;
+				if (!activeFile || file.path !== activeFile.path) {
+					Debug.log("events", "Not active file, skipping", {
+						activeFilePath: activeFile?.path,
+						modifiedFilePath: file.path,
+					});
+					return;
+				}
+				Debug.log("events", "Auto-numbering on save enabled, applying numbering");
 				this.applyNumbering(undefined, { silent: true });
 			}),
 		);
@@ -82,6 +115,31 @@ export default class HeadIndexPlugin extends Plugin {
 				delete settingsWithOldField.autoNumberOnEdit;
 				await this.saveSettings();
 			}
+		}
+
+		// Migration: Convert old debugMode setting to new debug structure
+		if (loaded && "debugMode" in loaded && !("debug" in loaded)) {
+			const oldDebugMode = loaded.debugMode === true;
+			this.settings.debug = {
+				enabled: oldDebugMode,
+				modules: {
+					core: oldDebugMode,
+					parser: false,
+					cursor: false,
+					strip: false,
+					events: false,
+					format: false,
+				},
+			};
+			// Remove the old field and save the migrated settings
+			const settingsWithOldField = this.settings as HeadIndexSettings & { debugMode?: boolean };
+			delete settingsWithOldField.debugMode;
+			await this.saveSettings();
+		}
+
+		// Ensure debug structure exists and is valid
+		if (!this.settings.debug) {
+			this.settings.debug = DEFAULT_SETTINGS.debug;
 		}
 	}
 
